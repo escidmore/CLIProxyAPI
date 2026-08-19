@@ -500,7 +500,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 		}
 	}
 	wsHeaders := applyXAIWebsocketHeaders(http.Header{}, auth, token, prepared.sessionID)
-	helps.ApplyOAuthCompletionHeaders(wsHeaders, e.cfg, auth, opts)
+	helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
 	idMapper := newXAIWebsocketRequestIDMapper(e.idStore, stateSessionID, req.Payload)
 	if idMapper != nil {
 		if websocketSessionTargetChanged(sess, authID, wsURL, wsHeaders) {

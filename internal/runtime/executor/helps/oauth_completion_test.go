@@ -29,6 +29,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 		Metadata: map[string]any{cliproxyexecutor.RequestPathMetadataKey: "/v1/responses"},
 		Headers: http.Header{
 			"Authorization":          {"harness-authorization"},
+			"ChatGPT-Account-ID":     {"harness-account-id"},
 			"X-Api-Key":              {"harness-api-key"},
 			"Accept":                 {"application/json"},
 			"Accept-Encoding":        {"gzip"},
@@ -47,7 +48,10 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 	if got := OAuthCompletionBaseURL(cfg, oauth, incoming, "https://provider.example"); got != "https://sleev.example" {
 		t.Fatalf("OAuthCompletionBaseURL() = %q, want override", got)
 	}
-	headers := http.Header{"Authorization": {"provider-authorization"}}
+	headers := http.Header{
+		"Authorization":      {"provider-authorization"},
+		"ChatGPT-Account-ID": {"provider-account-id"},
+	}
 	ApplyOAuthCompletionHeaders(headers, cfg, oauth, incoming)
 	if got := headers.Get("sleev-token"); got != "harness-token" {
 		t.Fatalf("sleev-token = %q, want harness-token", got)
@@ -58,7 +62,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 	if got := headers.Get("Authorization"); got != "provider-authorization" {
 		t.Fatalf("Authorization = %q, want provider-authorization", got)
 	}
-	for _, blocked := range []string{"X-Api-Key", "Accept", "Accept-Encoding", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Sec-WebSocket-Protocol"} {
+	for _, blocked := range []string{"X-Api-Key", "ChatGPT-Account-ID", "Accept", "Accept-Encoding", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Sec-WebSocket-Protocol"} {
 		if got := headers.Get(blocked); got != "" {
 			t.Fatalf("%s = %q, want blocked from harness passthrough", blocked, got)
 		}
@@ -91,5 +95,41 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 				t.Fatalf("sleev-token = %q, want no override", got)
 			}
 		})
+	}
+}
+
+func TestOAuthCompletionWebsocketHeadersProtectHandshakeControls(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.OAuth = map[string]config.OAuthProviderConfig{
+		"codex": {Headers: map[string]string{"sleev-token": "default-token", "OpenAI-Beta": "configured-beta", "Origin": "configured-origin", "Originator": "configured-originator"}},
+	}
+	auth := &cliproxyauth.Auth{
+		Provider:   "codex",
+		Attributes: map[string]string{cliproxyauth.AttributeAuthKind: cliproxyauth.AuthKindOAuth},
+	}
+	opts := cliproxyexecutor.Options{
+		Metadata: map[string]any{cliproxyexecutor.RequestPathMetadataKey: "/v1/responses"},
+		Headers: http.Header{
+			"OpenAI-Beta": {"caller-beta"},
+			"Origin":      {"caller-origin"},
+			"Originator":  {"caller-originator"},
+			"sleev-token": {"harness-token"},
+		},
+	}
+	headers := http.Header{}
+	headers.Set("OpenAI-Beta", "responses_websockets=2026-01-01")
+	headers.Set("Origin", "provider-origin")
+	headers.Set("Originator", "codex")
+
+	ApplyOAuthCompletionWebsocketHeaders(headers, cfg, auth, opts)
+	for name, want := range map[string]string{
+		"OpenAI-Beta": "responses_websockets=2026-01-01",
+		"Origin":      "provider-origin",
+		"Originator":  "codex",
+		"sleev-token": "harness-token",
+	} {
+		if got := headers.Get(name); got != want {
+			t.Fatalf("%s = %q, want %q", name, got, want)
+		}
 	}
 }
