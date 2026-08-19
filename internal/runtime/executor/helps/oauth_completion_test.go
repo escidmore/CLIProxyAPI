@@ -34,6 +34,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 			"Accept-Encoding":        {"gzip"},
 			"Proxy-Authenticate":     {"harness-proxy-authenticate"},
 			"Proxy-Authorization":    {"harness-proxy-authorization"},
+			"Cookie":                 {"session=secret"},
 			"Keep-Alive":             {"timeout=5"},
 			"Te":                     {"trailers"},
 			"Trailer":                {"X-Request-Trailer"},
@@ -57,7 +58,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 	if got := headers.Get("Authorization"); got != "provider-authorization" {
 		t.Fatalf("Authorization = %q, want provider-authorization", got)
 	}
-	for _, blocked := range []string{"X-Api-Key", "Accept", "Accept-Encoding", "Proxy-Authenticate", "Proxy-Authorization", "Keep-Alive", "Te", "Trailer", "Sec-WebSocket-Protocol"} {
+	for _, blocked := range []string{"X-Api-Key", "Accept", "Accept-Encoding", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Sec-WebSocket-Protocol"} {
 		if got := headers.Get(blocked); got != "" {
 			t.Fatalf("%s = %q, want blocked from harness passthrough", blocked, got)
 		}

@@ -53,7 +53,7 @@ func forwardOAuthCompletionHeader(name string) bool {
 		return false
 	}
 	switch canonical {
-	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding":
+	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding":
 		// Credentials stay with the executor, and representation headers
 		// (Accept, Accept-Encoding, Content-Type) must keep the values the
 		// executor set, since response decoding depends on them.
