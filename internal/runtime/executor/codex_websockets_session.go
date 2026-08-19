@@ -81,6 +81,18 @@ type codexWebsocketSession struct {
 	upstreamDisconnectErr     error
 }
 
+var websocketRequestScopedHeaders = map[string]struct{}{
+	"Conversation_id":                       {},
+	"Session-Id":                            {},
+	"Session_id":                            {},
+	"Thread-Id":                             {},
+	"X-Client-Request-Id":                   {},
+	"X-Codex-Turn-Metadata":                 {},
+	"X-Codex-Turn-State":                    {},
+	"X-Codex-Window-Id":                     {},
+	"X-Responsesapi-Include-Timing-Metrics": {},
+}
+
 type codexWebsocketRead struct {
 	conn    *websocket.Conn
 	msgType int
@@ -329,6 +341,9 @@ func websocketHeaderFingerprint(headers http.Header) [sha256.Size]byte {
 	normalized := make(map[string][]string, len(headers))
 	for key, values := range headers {
 		canonicalKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
+		if _, requestScoped := websocketRequestScopedHeaders[canonicalKey]; requestScoped {
+			continue
+		}
 		normalized[canonicalKey] = append(normalized[canonicalKey], values...)
 	}
 	payload, _ := json.Marshal(normalized)
