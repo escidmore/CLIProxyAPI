@@ -469,6 +469,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 	if baseURL == "" {
 		baseURL = xaiauth.DefaultAPIBaseURL
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 
 	prepared, err := e.prepareResponsesWebsocketRequest(ctx, req, opts)
 	if err != nil {
@@ -508,6 +509,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 	reporter.SetTranslatedReasoningEffort(prepared.body, e.Identifier())
 
 	wsHeaders := applyXAIWebsocketHeaders(http.Header{}, auth, token, prepared.sessionID)
+	helps.ApplyOAuthCompletionHeaders(wsHeaders, e.cfg, auth, opts)
 	wsReqBody := buildXAIWebsocketRequestBody(prepared.body)
 	requestType := strings.TrimSpace(gjson.GetBytes(req.Payload, "type").String())
 	transcriptReset := strings.TrimSpace(gjson.GetBytes(wsReqBody, "previous_response_id").String()) == "" &&

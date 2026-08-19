@@ -117,6 +117,16 @@ func (s *Server) setupRoutes() {
 		codexDirect.POST("/alpha/search", s.codexAlphaSearch)
 	}
 
+	for _, prefix := range []string{"/codex", "/v1/codex"} {
+		codexResponses := s.engine.Group(prefix)
+		codexResponses.Use(AuthMiddleware(s.accessManager))
+		{
+			codexResponses.GET("/responses", openaiResponsesHandlers.ResponsesWebsocket)
+			codexResponses.POST("/responses", openaiResponsesHandlers.Responses)
+			codexResponses.POST("/responses/compact", openaiResponsesHandlers.Compact)
+		}
+	}
+
 	// Gemini compatible API routes
 	v1beta := s.engine.Group("/v1beta")
 	v1beta.Use(AuthMiddleware(s.accessManager))

@@ -134,6 +134,20 @@ redis-usage-queue-retention-seconds: 60
 # Per-entry proxy-url also supports "direct" or "none" to bypass both the global proxy-url and environment proxies explicitly.
 proxy-url: ""
 
+# Override the completion endpoint and add headers for incoming requests that
+# use OAuth credentials. These settings do not affect OAuth login/token calls
+# or other internal provider requests. Keys are provider names such as codex,
+# claude, kimi, xai, and antigravity. Headers from the incoming harness request
+# are passed through and override these configured defaults, except for auth
+# and HTTP transport headers managed by CLIProxyAPI.
+# oauth:
+#   codex:
+#     base-url: "https://sleev.samesies.gay"
+#     headers:
+#       sleev-token: "slv_inst_example"
+#       sleev-provider: "codex"
+#       sleev-harness: "opencode"
+
 # When true, unprefixed model requests only use credentials without a prefix (except when prefix == model name).
 force-model-prefix: false
 

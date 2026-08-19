@@ -32,6 +32,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	if baseURL == "" {
 		baseURL = "https://chatgpt.com/backend-api/codex"
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 
 	reporter := helps.NewExecutorUsageReporter(ctx, e, baseModel, auth)
 	defer reporter.TrackFailure(ctx, &err)
@@ -85,6 +86,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	wsHeaders = applyCodexWebsocketHeaders(ctx, wsHeaders, auth, apiKey, e.cfg)
 	applyModelHeaderOverrides(wsHeaders, baseModel)
 	applyCodexIdentityConfuseHeaders(wsHeaders, &identityState)
+	helps.ApplyOAuthCompletionHeaders(wsHeaders, e.cfg, auth, opts)
 
 	var authID, authLabel, authType, authValue string
 	authID = auth.ID

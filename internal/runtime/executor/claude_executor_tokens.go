@@ -124,6 +124,8 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"
 	}
+	anthropicBaseURL := baseURL
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 	url := fmt.Sprintf("%s/v1/messages/count_tokens?beta=true", baseURL)
 	oauthToken := isClaudeOAuthToken(apiKey)
 
@@ -153,7 +155,10 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 		body = rebuildMidSystemMessagesToTopLevel(body)
 	}
 
-	directAnthropic := isAnthropicUpstreamBase(baseURL)
+	// Anthropic-specific handling keys off the provider URL, not the OAuth
+	// completion override: a relay in front of Anthropic still enforces the
+	// native count_tokens contract.
+	directAnthropic := isAnthropicUpstreamBase(anthropicBaseURL)
 	var cloaked bool
 	if directAnthropic {
 		// Claude Code's count_tokens carries only model, messages and tools, so the
@@ -224,6 +229,7 @@ func (e *ClaudeExecutor) countTokensUpstream(ctx context.Context, auth *cliproxy
 	if errHeaders := applyClaudeHeaders(httpReq, auth, apiKey, false, extraBetas, body, e.cfg, incomingHeaders, confirmedClaudeCode && !cloaked, claudeSessionID); errHeaders != nil {
 		return cliproxyexecutor.Response{}, errHeaders
 	}
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
 		authID = auth.ID

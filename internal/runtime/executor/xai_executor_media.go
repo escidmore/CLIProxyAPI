@@ -16,7 +16,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func (e *XAIExecutor) executeImages(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, endpointPath string) (resp cliproxyexecutor.Response, err error) {
+func (e *XAIExecutor) executeImages(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options, endpointPath string) (resp cliproxyexecutor.Response, err error) {
 	model := strings.TrimSpace(gjson.GetBytes(req.Payload, "model").String())
 	if model == "" {
 		model = strings.TrimSpace(req.Model)
@@ -28,6 +28,7 @@ func (e *XAIExecutor) executeImages(ctx context.Context, auth *cliproxyauth.Auth
 	if baseURL == "" {
 		baseURL = xaiauth.DefaultAPIBaseURL
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 	logXAIResolvedBaseURL(ctx, baseURL)
 	if endpointPath == "" {
 		endpointPath = xaiDefaultImageEndpointPath
@@ -40,6 +41,7 @@ func (e *XAIExecutor) executeImages(ctx context.Context, auth *cliproxyauth.Auth
 		return resp, err
 	}
 	applyXAIHeaders(httpReq, auth, token, false, "")
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	e.recordXAIRequest(ctx, auth, url, httpReq.Header.Clone(), payload)
 
 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
@@ -85,6 +87,7 @@ func (e *XAIExecutor) executeVideos(ctx context.Context, auth *cliproxyauth.Auth
 	if baseURL == "" {
 		baseURL = xaiauth.DefaultAPIBaseURL
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 	logXAIResolvedBaseURL(ctx, baseURL)
 
 	payload := normalizeXAIImageRefs(req.Payload)
@@ -108,6 +111,7 @@ func (e *XAIExecutor) executeVideos(ctx context.Context, auth *cliproxyauth.Auth
 		return resp, err
 	}
 	applyXAIHeaders(httpReq, auth, token, false, "")
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	if method == http.MethodPost {
 		key := xaiMetadataString(opts.Metadata, xaiIdempotencyKeyMetaKey)
 		if key == "" && opts.Headers != nil {
