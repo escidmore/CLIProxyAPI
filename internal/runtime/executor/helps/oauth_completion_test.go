@@ -110,23 +110,26 @@ func TestOAuthCompletionWebsocketHeadersProtectHandshakeControls(t *testing.T) {
 	opts := cliproxyexecutor.Options{
 		Metadata: map[string]any{cliproxyexecutor.RequestPathMetadataKey: "/v1/responses"},
 		Headers: http.Header{
-			"OpenAI-Beta": {"caller-beta"},
-			"Origin":      {"caller-origin"},
-			"Originator":  {"caller-originator"},
-			"sleev-token": {"harness-token"},
+			"OpenAI-Beta":    {"caller-beta"},
+			"Origin":         {"caller-origin"},
+			"Originator":     {"caller-originator"},
+			"X-Grok-Conv-Id": {"caller-session"},
+			"sleev-token":    {"harness-token"},
 		},
 	}
 	headers := http.Header{}
 	headers.Set("OpenAI-Beta", "responses_websockets=2026-01-01")
 	headers.Set("Origin", "provider-origin")
 	headers.Set("Originator", "codex")
+	headers.Set("X-Grok-Conv-Id", "session-a")
 
 	ApplyOAuthCompletionWebsocketHeaders(headers, cfg, auth, opts)
 	for name, want := range map[string]string{
-		"OpenAI-Beta": "responses_websockets=2026-01-01",
-		"Origin":      "provider-origin",
-		"Originator":  "codex",
-		"sleev-token": "harness-token",
+		"OpenAI-Beta":    "responses_websockets=2026-01-01",
+		"Origin":         "provider-origin",
+		"Originator":     "codex",
+		"X-Grok-Conv-Id": "session-a",
+		"sleev-token":    "harness-token",
 	} {
 		if got := headers.Get(name); got != want {
 			t.Fatalf("%s = %q, want %q", name, got, want)

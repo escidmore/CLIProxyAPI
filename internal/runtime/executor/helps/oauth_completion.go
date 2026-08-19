@@ -55,7 +55,7 @@ func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *
 
 func forwardOAuthCompletionWebsocketHeader(name string) bool {
 	switch http.CanonicalHeaderKey(strings.TrimSpace(name)) {
-	case "Openai-Beta", "Origin", "Originator":
+	case "Openai-Beta", "Origin", "Originator", "X-Grok-Conv-Id":
 		return false
 	default:
 		return forwardOAuthCompletionHeader(name)
