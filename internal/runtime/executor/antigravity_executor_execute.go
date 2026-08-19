@@ -313,6 +313,9 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 	useCredits := cliproxyauth.AntigravityCreditsRequested(ctx) && antigravityCreditsRetryEnabled(e.cfg)
 
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
+	if override := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, ""); override != "" {
+		baseURLs = []string{override}
+	}
 	httpClient := newAntigravityHTTPClient(ctx, e.cfg, auth, 0)
 	httpClient = reporter.TrackHTTPClient(httpClient)
 
@@ -346,6 +349,7 @@ attemptLoop:
 				err = errReq
 				return resp, err
 			}
+			helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 
 			httpResp, errDo := httpClient.Do(httpReq)
 			if errDo != nil {

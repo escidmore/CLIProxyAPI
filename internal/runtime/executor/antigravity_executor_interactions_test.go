@@ -96,3 +96,65 @@ func TestAntigravityExecutorExecuteStreamTranslatesInteractionsRequest(t *testin
 		t.Fatalf("request.generationConfig.thinkingConfig.includeThoughts = false, want true. Body: %s", string(upstreamBody))
 	}
 }
+
+func TestAntigravityExecutorClaudeNonStreamUsesOAuthCompletionOverride(t *testing.T) {
+	var overrideRequests, fallbackRequests int
+	var gotHeader string
+	overrideServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		overrideRequests++
+		if r.URL.Path != "/v1internal:streamGenerateContent" {
+			t.Fatalf("path = %q, want /v1internal:streamGenerateContent", r.URL.Path)
+		}
+		gotHeader = r.Header.Get("sleev-token")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"response\":{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"ok\"}]} }],\"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":1,\"totalTokenCount\":2}}}\n\n"))
+	}))
+	defer overrideServer.Close()
+	fallbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fallbackRequests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{"candidates":[{"content":{"role":"model","parts":[{"text":"fallback"}]}}]}}`))
+	}))
+	defer fallbackServer.Close()
+
+	exec := NewAntigravityExecutor(&config.Config{
+		SDKConfig: config.SDKConfig{
+			OAuth: map[string]config.OAuthProviderConfig{
+				"antigravity": {BaseURL: overrideServer.URL, Headers: map[string]string{"sleev-token": "default-token"}},
+			},
+		},
+	})
+	auth := &cliproxyauth.Auth{
+		ID:       "oauth-antigravity-claude",
+		Provider: "antigravity",
+		Attributes: map[string]string{
+			cliproxyauth.AttributeAuthKind: cliproxyauth.AuthKindOAuth,
+			"base_url":                     fallbackServer.URL,
+		},
+		Metadata: map[string]any{
+			"access_token": "token",
+			"project_id":   "project-1",
+			"expired":      time.Now().Add(time.Hour).Format(time.RFC3339),
+		},
+	}
+	_, errExecute := exec.Execute(context.Background(), auth, cliproxyexecutor.Request{
+		Model:   "claude-sonnet-4-6",
+		Payload: []byte(`{"request":{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}}`),
+	}, cliproxyexecutor.Options{
+		SourceFormat: sdktranslator.FormatAntigravity,
+		Headers:      http.Header{"Sleev-Token": {"harness-token"}},
+		Metadata:     map[string]any{cliproxyexecutor.RequestPathMetadataKey: "/v1/messages"},
+	})
+	if errExecute != nil {
+		t.Fatalf("Execute() error = %v", errExecute)
+	}
+	if overrideRequests != 1 {
+		t.Fatalf("OAuth override requests = %d, want 1", overrideRequests)
+	}
+	if fallbackRequests != 0 {
+		t.Fatalf("fallback requests = %d, want 0", fallbackRequests)
+	}
+	if gotHeader != "harness-token" {
+		t.Fatalf("sleev-token = %q, want harness-token", gotHeader)
+	}
+}
