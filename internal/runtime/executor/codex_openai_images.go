@@ -328,6 +328,7 @@ func (e *CodexExecutor) executeDirectOpenAIImage(ctx context.Context, auth *clip
 	if baseURL == "" {
 		baseURL = "https://chatgpt.com/backend-api/codex"
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 
 	reporter := helps.NewExecutorUsageReporter(ctx, e, model, auth)
 	defer reporter.TrackFailure(ctx, &err)

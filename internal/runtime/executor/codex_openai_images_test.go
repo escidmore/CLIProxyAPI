@@ -125,6 +125,49 @@ func TestCodexExecutorDirectOpenAIImageGenerationUsesImagesEndpoint(t *testing.T
 	}
 }
 
+func TestCodexExecutorDirectOpenAIImageUsesOAuthCompletionBaseURL(t *testing.T) {
+	var overrideRequests, fallbackRequests int
+	overrideServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		overrideRequests++
+		if r.URL.Path != "/images/generations" {
+			t.Fatalf("path = %q, want /images/generations", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"created":1713833628,"data":[{"b64_json":"AA=="}]}`))
+	}))
+	defer overrideServer.Close()
+	fallbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fallbackRequests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"created":1713833628,"data":[{"b64_json":"AQ=="}]}`))
+	}))
+	defer fallbackServer.Close()
+
+	executor := NewCodexExecutor(&config.Config{SDKConfig: config.SDKConfig{OAuth: map[string]config.OAuthProviderConfig{
+		"codex": {BaseURL: overrideServer.URL},
+	}}})
+	_, errExecute := executor.Execute(context.Background(), &cliproxyauth.Auth{
+		Provider: "codex",
+		Attributes: map[string]string{
+			cliproxyauth.AttributeAuthKind: cliproxyauth.AuthKindOAuth,
+			"base_url":                     fallbackServer.URL,
+		},
+		Metadata: map[string]any{"access_token": "provider-token"},
+	}, cliproxyexecutor.Request{
+		Model:   "gpt-image-2",
+		Payload: []byte(`{"model":"gpt-image-2","prompt":"A cute baby sea otter"}`),
+	}, codexOpenAIImageTestOptions(codexImagesGenerationsPath, false))
+	if errExecute != nil {
+		t.Fatalf("Execute() error = %v", errExecute)
+	}
+	if overrideRequests != 1 {
+		t.Fatalf("OAuth override requests = %d, want 1", overrideRequests)
+	}
+	if fallbackRequests != 0 {
+		t.Fatalf("fallback requests = %d, want 0", fallbackRequests)
+	}
+}
+
 func TestCodexExecutorDirectOpenAIImageGenerationStreamsImagesEndpoint(t *testing.T) {
 	var gotPath string
 	var gotAccept string
