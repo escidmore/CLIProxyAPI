@@ -41,6 +41,12 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 			"Trailer":                {"X-Request-Trailer"},
 			"Sec-WebSocket-Protocol": {"chat"},
 			"X-Grok-Conv-Id":         {"harness-session"},
+			"X-Codex-Turn-Metadata":  {"harness-metadata"},
+			"X-Client-Request-Id":    {"harness-request-id"},
+			"Conversation_id":        {"harness-conversation"},
+			"Session-Id":             {"harness-session-id"},
+			"Thread-Id":              {"harness-thread"},
+			"X-Codex-Window-Id":      {"harness-window"},
 			"sleev-token":            {"harness-token"},
 			"sleev-extra":            {"harness-value"},
 		},
@@ -50,9 +56,15 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 		t.Fatalf("OAuthCompletionBaseURL() = %q, want override", got)
 	}
 	headers := http.Header{
-		"Authorization":      {"provider-authorization"},
-		"ChatGPT-Account-ID": {"provider-account-id"},
-		"X-Grok-Conv-Id":     {"provider-session"},
+		"Authorization":         {"provider-authorization"},
+		"ChatGPT-Account-ID":    {"provider-account-id"},
+		"X-Grok-Conv-Id":        {"provider-session"},
+		"X-Codex-Turn-Metadata": {"provider-metadata"},
+		"X-Client-Request-Id":   {"provider-request-id"},
+		"Conversation_id":       {"provider-conversation"},
+		"Session-Id":            {"provider-session-id"},
+		"Thread-Id":             {"provider-thread"},
+		"X-Codex-Window-Id":     {"provider-window"},
 	}
 	ApplyOAuthCompletionHeaders(headers, cfg, oauth, incoming)
 	if got := headers.Get("sleev-token"); got != "harness-token" {
@@ -67,6 +79,18 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 	for _, blocked := range []string{"X-Api-Key", "ChatGPT-Account-ID", "Accept", "Accept-Encoding", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Sec-WebSocket-Protocol"} {
 		if got := headers.Get(blocked); got != "" {
 			t.Fatalf("%s = %q, want blocked from harness passthrough", blocked, got)
+		}
+	}
+	for name, want := range map[string]string{
+		"X-Codex-Turn-Metadata": "provider-metadata",
+		"X-Client-Request-Id":   "provider-request-id",
+		"Conversation_id":       "provider-conversation",
+		"Session-Id":            "provider-session-id",
+		"Thread-Id":             "provider-thread",
+		"X-Codex-Window-Id":     "provider-window",
+	} {
+		if got := headers.Get(name); got != want {
+			t.Fatalf("%s = %q, want %q", name, got, want)
 		}
 	}
 	if got := headers.Get("X-Grok-Conv-Id"); got != "provider-session" {

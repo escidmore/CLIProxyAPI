@@ -70,12 +70,15 @@ func forwardOAuthCompletionHeader(name string) bool {
 		return false
 	}
 	switch canonical {
-	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding", "Chatgpt-Account-Id", "X-Grok-Conv-Id":
+	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding", "Chatgpt-Account-Id", "X-Grok-Conv-Id", "Session-Id", "Session_id", "Thread-Id", "X-Client-Request-Id", "X-Codex-Turn-Metadata", "X-Codex-Window-Id":
 		// Credentials stay with the executor, and representation headers
 		// (Accept, Accept-Encoding, Content-Type) must keep the values the
 		// executor set, since response decoding depends on them.
 		return false
 	default:
+		if strings.EqualFold(canonical, "Conversation_id") || strings.EqualFold(canonical, "Session_id") {
+			return false
+		}
 		return strings.TrimSpace(name) != ""
 	}
 }
