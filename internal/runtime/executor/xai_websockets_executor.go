@@ -500,10 +500,12 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 		}
 	}
 	wsHeaders := applyXAIWebsocketHeaders(http.Header{}, auth, token, prepared.sessionID)
-	helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
+	connectionHeaders := wsHeaders.Clone()
+	oauthHeaders := helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
+	headerFingerprint := websocketHeaderFingerprint(connectionHeaders, oauthHeaders)
 	idMapper := newXAIWebsocketRequestIDMapper(e.idStore, stateSessionID, req.Payload)
 	if idMapper != nil {
-		if websocketSessionTargetChanged(sess, authID, wsURL, wsHeaders) {
+		if websocketSessionTargetChanged(sess, authID, wsURL, headerFingerprint) {
 			idMapper.upstreamPreviousID = ""
 		}
 		prepared.body = idMapper.upstreamRequestPayload(prepared.body)
@@ -535,7 +537,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 	var respHS *http.Response
 	var errDial error
 	if cliproxyexecutor.RequiredUpstreamWebsocket(ctx) {
-		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL, wsHeaders)
+		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL, headerFingerprint)
 		if conn == nil {
 			if sess != nil {
 				sess.reqMu.Unlock()
@@ -543,7 +545,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 			return nil, cliproxyexecutor.NewUpstreamWebsocketReplayRequiredError()
 		}
 	} else {
-		conn, closer, respHS, errDial = e.ensureUpstreamConn(ctx, auth, sess, authID, wsURL, wsHeaders)
+		conn, closer, respHS, errDial = e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, wsHeaders, headerFingerprint)
 	}
 	var upstreamHeaders http.Header
 	if respHS != nil {
@@ -604,7 +606,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 				sess.reqMu.Unlock()
 				return nil, errSend
 			}
-			connRetry, closerRetry, respHSRetry, errDialRetry := e.ensureUpstreamConn(ctx, auth, sess, authID, wsURL, wsHeaders)
+			connRetry, closerRetry, respHSRetry, errDialRetry := e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, wsHeaders, headerFingerprint)
 			if errDialRetry != nil || connRetry == nil {
 				bodyErrRetry := websocketHandshakeBody(respHSRetry)
 				closeHTTPResponseBody(respHSRetry, "xai websockets executor: close handshake response body error")
@@ -1092,11 +1094,14 @@ func (e *XAIWebsocketsExecutor) UpstreamDisconnectChan(sessionID string) <-chan 
 }
 
 func (e *XAIWebsocketsExecutor) ensureUpstreamConn(ctx context.Context, auth *cliproxyauth.Auth, sess *codexWebsocketSession, authID string, wsURL string, headers http.Header) (*websocket.Conn, *websocketConnectionCloser, *http.Response, error) {
+	return e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, headers, websocketHeaderFingerprint(headers))
+}
+
+func (e *XAIWebsocketsExecutor) ensureUpstreamConnWithFingerprint(ctx context.Context, auth *cliproxyauth.Auth, sess *codexWebsocketSession, authID string, wsURL string, headers http.Header, headerFingerprint websocketHeaderDigest) (*websocket.Conn, *websocketConnectionCloser, *http.Response, error) {
 	if sess == nil {
 		return e.dialXAIWebsocket(ctx, auth, wsURL, headers)
 	}
 
-	headerFingerprint := websocketHeaderFingerprint(headers)
 	if staleConn, staleCloser, staleAuthID, staleWSURL, staleLifecycle := detachMismatchedWebsocketSessionConn(sess, authID, wsURL, headerFingerprint); staleConn != nil {
 		logXAIWebsocketDisconnected(sess.sessionID, staleAuthID, staleWSURL, "target_changed", nil)
 		if staleCloser != nil {

@@ -89,7 +89,9 @@ func (e *CodexWebsocketsExecutor) Execute(ctx context.Context, auth *cliproxyaut
 	wsHeaders = applyCodexWebsocketHeaders(ctx, wsHeaders, auth, apiKey, e.cfg)
 	applyModelHeaderOverrides(wsHeaders, baseModel)
 	applyCodexIdentityConfuseHeaders(wsHeaders, &identityState)
-	helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
+	connectionHeaders := wsHeaders.Clone()
+	oauthHeaders := helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
+	headerFingerprint := websocketHeaderFingerprint(connectionHeaders, oauthHeaders)
 
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
@@ -133,12 +135,12 @@ func (e *CodexWebsocketsExecutor) Execute(ctx context.Context, auth *cliproxyaut
 	var respHS *http.Response
 	var errDial error
 	if cliproxyexecutor.RequiredUpstreamWebsocket(ctx) {
-		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL, wsHeaders)
+		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL, headerFingerprint)
 		if conn == nil {
 			return resp, cliproxyexecutor.NewUpstreamWebsocketReplayRequiredError()
 		}
 	} else {
-		conn, closer, respHS, errDial = e.ensureUpstreamConn(ctx, auth, sess, authID, wsURL, wsHeaders)
+		conn, closer, respHS, errDial = e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, wsHeaders, headerFingerprint)
 	}
 	if errDial != nil {
 		bodyErr := websocketHandshakeBody(respHS)
@@ -207,7 +209,7 @@ func (e *CodexWebsocketsExecutor) Execute(ctx context.Context, auth *cliproxyaut
 			// Retry once with a fresh websocket connection. This is mainly to handle
 			// upstream closing the socket between sequential requests within the same
 			// execution session.
-			connRetry, closerRetry, respHSRetry, errDialRetry := e.ensureUpstreamConn(ctx, auth, sess, authID, wsURL, wsHeaders)
+			connRetry, closerRetry, respHSRetry, errDialRetry := e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, wsHeaders, headerFingerprint)
 			if errDialRetry == nil && connRetry != nil {
 				previousConn, previousReadCh := conn, readCh
 				conn = connRetry

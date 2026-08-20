@@ -40,6 +40,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 			"Te":                     {"trailers"},
 			"Trailer":                {"X-Request-Trailer"},
 			"Sec-WebSocket-Protocol": {"chat"},
+			"X-Grok-Conv-Id":         {"harness-session"},
 			"sleev-token":            {"harness-token"},
 			"sleev-extra":            {"harness-value"},
 		},
@@ -51,6 +52,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 	headers := http.Header{
 		"Authorization":      {"provider-authorization"},
 		"ChatGPT-Account-ID": {"provider-account-id"},
+		"X-Grok-Conv-Id":     {"provider-session"},
 	}
 	ApplyOAuthCompletionHeaders(headers, cfg, oauth, incoming)
 	if got := headers.Get("sleev-token"); got != "harness-token" {
@@ -66,6 +68,9 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 		if got := headers.Get(blocked); got != "" {
 			t.Fatalf("%s = %q, want blocked from harness passthrough", blocked, got)
 		}
+	}
+	if got := headers.Get("X-Grok-Conv-Id"); got != "provider-session" {
+		t.Fatalf("X-Grok-Conv-Id = %q, want provider-session", got)
 	}
 	if got := headers.Get("empty-header"); got != "" {
 		t.Fatalf("empty-header = %q, want empty value", got)

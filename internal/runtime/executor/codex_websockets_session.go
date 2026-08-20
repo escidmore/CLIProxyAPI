@@ -58,7 +58,7 @@ type codexWebsocketSession struct {
 	connCloser                *websocketConnectionCloser
 	wsURL                     string
 	authID                    string
-	wsHeaderFingerprint       [sha256.Size]byte
+	wsHeaderFingerprint       websocketHeaderDigest
 	multiAgentV2OptimizedConn *websocket.Conn
 	lifecycleBindMu           sync.Mutex
 	lifecycle                 cliproxyexecutor.ExecutionLifecycle
@@ -80,6 +80,8 @@ type codexWebsocketSession struct {
 	upstreamDisconnectErrConn *websocket.Conn
 	upstreamDisconnectErr     error
 }
+
+type websocketHeaderDigest [sha256.Size]byte
 
 var websocketRequestScopedHeaders = map[string]struct{}{
 	"Conversation_id":                       {},
@@ -337,7 +339,7 @@ func closeWebsocketAfterBindFailure(sess *codexWebsocketSession, conn *websocket
 	}
 }
 
-func websocketHeaderFingerprint(headers http.Header) [sha256.Size]byte {
+func websocketHeaderFingerprint(headers http.Header, oauthHeaders ...http.Header) websocketHeaderDigest {
 	normalized := make(map[string][]string, len(headers))
 	for key, values := range headers {
 		canonicalKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
@@ -346,16 +348,24 @@ func websocketHeaderFingerprint(headers http.Header) [sha256.Size]byte {
 		}
 		normalized[canonicalKey] = append(normalized[canonicalKey], values...)
 	}
+	for _, headers := range oauthHeaders {
+		for key, values := range headers {
+			canonicalKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
+			if canonicalKey == "" {
+				continue
+			}
+			normalized[canonicalKey] = append([]string(nil), values...)
+		}
+	}
 	payload, _ := json.Marshal(normalized)
 	return sha256.Sum256(payload)
 }
 
-func websocketSessionTargetChanged(sess *codexWebsocketSession, authID string, wsURL string, headers http.Header) bool {
+func websocketSessionTargetChanged(sess *codexWebsocketSession, authID string, wsURL string, headerFingerprint websocketHeaderDigest) bool {
 	if sess == nil {
 		return false
 	}
 
-	headerFingerprint := websocketHeaderFingerprint(headers)
 	sess.connMu.Lock()
 	defer sess.connMu.Unlock()
 	if strings.TrimSpace(sess.authID) == "" && strings.TrimSpace(sess.wsURL) == "" {
@@ -366,14 +376,13 @@ func websocketSessionTargetChanged(sess *codexWebsocketSession, authID string, w
 		sess.wsHeaderFingerprint != headerFingerprint
 }
 
-func existingWebsocketSessionConn(sess *codexWebsocketSession, authID string, wsURL string, headers http.Header) (*websocket.Conn, *websocketConnectionCloser) {
+func existingWebsocketSessionConn(sess *codexWebsocketSession, authID string, wsURL string, headerFingerprint websocketHeaderDigest) (*websocket.Conn, *websocketConnectionCloser) {
 	if sess == nil {
 		return nil, nil
 	}
 	sess.connMu.Lock()
 	conn := sess.conn
 	closer := sess.connCloser
-	headerFingerprint := websocketHeaderFingerprint(headers)
 	matches := conn != nil && closer != nil &&
 		strings.TrimSpace(sess.authID) == strings.TrimSpace(authID) &&
 		strings.TrimSpace(sess.wsURL) == strings.TrimSpace(wsURL) &&
@@ -518,11 +527,14 @@ func (e *CodexWebsocketsExecutor) UpstreamDisconnectChan(sessionID string) <-cha
 }
 
 func (e *CodexWebsocketsExecutor) ensureUpstreamConn(ctx context.Context, auth *cliproxyauth.Auth, sess *codexWebsocketSession, authID string, wsURL string, headers http.Header) (*websocket.Conn, *websocketConnectionCloser, *http.Response, error) {
+	return e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, headers, websocketHeaderFingerprint(headers))
+}
+
+func (e *CodexWebsocketsExecutor) ensureUpstreamConnWithFingerprint(ctx context.Context, auth *cliproxyauth.Auth, sess *codexWebsocketSession, authID string, wsURL string, headers http.Header, headerFingerprint websocketHeaderDigest) (*websocket.Conn, *websocketConnectionCloser, *http.Response, error) {
 	if sess == nil {
 		return e.dialCodexWebsocket(ctx, auth, wsURL, headers)
 	}
 
-	headerFingerprint := websocketHeaderFingerprint(headers)
 	if staleConn, staleCloser, staleAuthID, staleWSURL, staleLifecycle := detachMismatchedWebsocketSessionConn(sess, authID, wsURL, headerFingerprint); staleConn != nil {
 		logCodexWebsocketDisconnected(sess.sessionID, staleAuthID, staleWSURL, "target_changed", nil)
 		if staleCloser != nil {

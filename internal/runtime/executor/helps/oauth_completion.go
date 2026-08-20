@@ -24,23 +24,25 @@ func OAuthCompletionBaseURL(cfg *config.Config, auth *cliproxyauth.Auth, opts cl
 // headers to an OAuth completion request. Harness values take precedence over
 // configured defaults, while credential and transport headers remain protected.
 func ApplyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) {
-	applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionHeader)
+	_ = applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionHeader)
 }
 
-func ApplyOAuthCompletionWebsocketHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) {
-	applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionWebsocketHeader)
+func ApplyOAuthCompletionWebsocketHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) http.Header {
+	return applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionWebsocketHeader)
 }
 
-func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options, forward func(string) bool) {
+func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options, forward func(string) bool) http.Header {
 	override, ok := oauthCompletionConfig(cfg, auth, opts)
 	if !ok {
-		return
+		return nil
 	}
+	configured := http.Header{}
 	for name, value := range override.Headers {
 		if !forward(name) {
 			continue
 		}
 		headers.Set(name, value)
+		configured.Set(name, value)
 	}
 	for name, values := range opts.Headers {
 		if !forward(name) {
@@ -50,7 +52,15 @@ func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *
 		for _, value := range values {
 			headers.Add(name, value)
 		}
+		canonical := http.CanonicalHeaderKey(strings.TrimSpace(name))
+		if _, ok := configured[canonical]; ok {
+			configured.Del(name)
+			for _, value := range values {
+				configured.Add(name, value)
+			}
+		}
 	}
+	return configured
 }
 
 func forwardOAuthCompletionWebsocketHeader(name string) bool {
@@ -70,7 +80,7 @@ func forwardOAuthCompletionHeader(name string) bool {
 		return false
 	}
 	switch canonical {
-	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding", "Chatgpt-Account-Id":
+	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding", "Chatgpt-Account-Id", "X-Grok-Conv-Id":
 		// Credentials stay with the executor, and representation headers
 		// (Accept, Accept-Encoding, Content-Type) must keep the values the
 		// executor set, since response decoding depends on them.
