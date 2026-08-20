@@ -21,12 +21,16 @@ import (
 func TestCodexExecutorOAuthCompletionOverrideTransport(t *testing.T) {
 	var attempts int32
 	var gotPath, gotAuthorization, gotAccept, gotSleevToken string
+	gotIdentityHeaders := make(map[string]string)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&attempts, 1)
 		gotPath = r.URL.Path
 		gotAuthorization = r.Header.Get("Authorization")
 		gotAccept = r.Header.Get("Accept")
 		gotSleevToken = r.Header.Get("sleev-token")
+		for _, name := range []string{"Session-Id", "Thread-Id", "X-Client-Request-Id", "X-Codex-Turn-Metadata", "X-Codex-Window-Id"} {
+			gotIdentityHeaders[name] = r.Header.Get(name)
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[],\"usage\":{\"input_tokens\":0,\"output_tokens\":0,\"total_tokens\":0}}}\n\n"))
 	}))
@@ -36,7 +40,14 @@ func TestCodexExecutorOAuthCompletionOverrideTransport(t *testing.T) {
 	cfg.OAuth = map[string]config.OAuthProviderConfig{
 		"codex": {
 			BaseURL: server.URL,
-			Headers: map[string]string{"sleev-token": "default-token"},
+			Headers: map[string]string{
+				"sleev-token":           "default-token",
+				"Session-Id":            "configured-session",
+				"Thread-Id":             "configured-thread",
+				"X-Client-Request-Id":   "configured-request-id",
+				"X-Codex-Turn-Metadata": "configured-metadata",
+				"X-Codex-Window-Id":     "configured-window",
+			},
 		},
 	}
 	executor := NewCodexExecutor(cfg)
@@ -47,7 +58,7 @@ func TestCodexExecutorOAuthCompletionOverrideTransport(t *testing.T) {
 	}
 	result, err := executor.ExecuteStream(context.Background(), auth, cliproxyexecutor.Request{
 		Model:   "gpt-5.4",
-		Payload: []byte(`{"model":"gpt-5.4","stream":true,"input":[{"type":"message","role":"user","content":"hi"}]}`),
+		Payload: []byte(`{"model":"gpt-5.4","stream":true,"prompt_cache_key":"executor-session","input":[{"type":"message","role":"user","content":"hi"}]}`),
 	}, cliproxyexecutor.Options{
 		SourceFormat: sdktranslator.FromString("openai-response"),
 		Stream:       true,
@@ -79,4 +90,13 @@ func TestCodexExecutorOAuthCompletionOverrideTransport(t *testing.T) {
 	if gotSleevToken != "harness-token" {
 		t.Fatalf("sleev-token = %q, want harness value overriding configured default", gotSleevToken)
 	}
+	if got := gotIdentityHeaders["Session-Id"]; got != "executor-session" {
+		t.Fatalf("Session-Id = %q, want executor session identity", got)
+	}
+	for _, name := range []string{"Thread-Id", "X-Client-Request-Id", "X-Codex-Turn-Metadata", "X-Codex-Window-Id"} {
+		if got := gotIdentityHeaders[name]; got != "" {
+			t.Fatalf("%s = %q, want configured OAuth identity header blocked", name, got)
+		}
+	}
+	t.Logf("upstream request: path=%s authorization=%s accept=%s sleev-token=%s session-id=%s thread-id=%s client-request-id=%s turn-metadata=%s window-id=%s", gotPath, gotAuthorization, gotAccept, gotSleevToken, gotIdentityHeaders["Session-Id"], gotIdentityHeaders["Thread-Id"], gotIdentityHeaders["X-Client-Request-Id"], gotIdentityHeaders["X-Codex-Turn-Metadata"], gotIdentityHeaders["X-Codex-Window-Id"])
 }

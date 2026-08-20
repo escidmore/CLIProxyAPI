@@ -22,7 +22,8 @@ func OAuthCompletionBaseURL(cfg *config.Config, auth *cliproxyauth.Auth, opts cl
 
 // ApplyOAuthCompletionHeaders applies configured defaults and incoming harness
 // headers to an OAuth completion request. Harness values take precedence over
-// configured defaults, while credential and transport headers remain protected.
+// configured defaults, while credential, provider identity, and transport
+// headers remain protected.
 func ApplyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) {
 	applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionHeader)
 }
@@ -71,9 +72,9 @@ func forwardOAuthCompletionHeader(name string) bool {
 	}
 	switch canonical {
 	case "Authorization", "X-Api-Key", "Accept", "Accept-Encoding", "Content-Type", "Host", "Connection", "Proxy-Connection", "Proxy-Authenticate", "Proxy-Authorization", "Cookie", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Content-Encoding", "Chatgpt-Account-Id", "X-Grok-Conv-Id", "Session-Id", "Session_id", "Thread-Id", "X-Client-Request-Id", "X-Codex-Turn-Metadata", "X-Codex-Window-Id":
-		// Credentials stay with the executor, and representation headers
-		// (Accept, Accept-Encoding, Content-Type) must keep the values the
-		// executor set, since response decoding depends on them.
+		// Credentials, provider identity, and representation headers (Accept,
+		// Accept-Encoding, Content-Type) must keep the values the executor set,
+		// since authentication and response decoding depend on them.
 		return false
 	default:
 		if strings.EqualFold(canonical, "Conversation_id") || strings.EqualFold(canonical, "Session_id") {

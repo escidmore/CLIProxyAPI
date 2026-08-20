@@ -138,8 +138,8 @@ proxy-url: ""
 # use OAuth credentials. These settings do not affect OAuth login/token calls
 # or other internal provider requests. Keys are provider names such as codex,
 # claude, kimi, xai, and antigravity. Headers from the incoming harness request
-# are passed through and override these configured defaults, except for auth
-# and HTTP transport headers managed by CLIProxyAPI.
+# are passed through and override these configured defaults, except for auth,
+# provider identity, and HTTP transport headers managed by CLIProxyAPI.
 # oauth:
 #   codex:
 #     base-url: "https://sleev.samesies.gay"
