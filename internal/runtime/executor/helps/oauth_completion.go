@@ -24,25 +24,23 @@ func OAuthCompletionBaseURL(cfg *config.Config, auth *cliproxyauth.Auth, opts cl
 // headers to an OAuth completion request. Harness values take precedence over
 // configured defaults, while credential and transport headers remain protected.
 func ApplyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) {
-	_ = applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionHeader)
+	applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionHeader)
 }
 
-func ApplyOAuthCompletionWebsocketHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) http.Header {
-	return applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionWebsocketHeader)
+func ApplyOAuthCompletionWebsocketHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options) {
+	applyOAuthCompletionHeaders(headers, cfg, auth, opts, forwardOAuthCompletionWebsocketHeader)
 }
 
-func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options, forward func(string) bool) http.Header {
+func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *cliproxyauth.Auth, opts cliproxyexecutor.Options, forward func(string) bool) {
 	override, ok := oauthCompletionConfig(cfg, auth, opts)
 	if !ok {
-		return nil
+		return
 	}
-	configured := http.Header{}
 	for name, value := range override.Headers {
 		if !forward(name) {
 			continue
 		}
 		headers.Set(name, value)
-		configured.Set(name, value)
 	}
 	for name, values := range opts.Headers {
 		if !forward(name) {
@@ -52,15 +50,7 @@ func applyOAuthCompletionHeaders(headers http.Header, cfg *config.Config, auth *
 		for _, value := range values {
 			headers.Add(name, value)
 		}
-		canonical := http.CanonicalHeaderKey(strings.TrimSpace(name))
-		if _, ok := configured[canonical]; ok {
-			configured.Del(name)
-			for _, value := range values {
-				configured.Add(name, value)
-			}
-		}
 	}
-	return configured
 }
 
 func forwardOAuthCompletionWebsocketHeader(name string) bool {

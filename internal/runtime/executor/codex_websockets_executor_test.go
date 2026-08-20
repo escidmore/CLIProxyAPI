@@ -509,12 +509,17 @@ func TestExistingWebsocketSessionConnRequiresMatchingHealthyConnection(t *testin
 	if got, _ := existingWebsocketSessionConn(sess, "auth-a", "ws://other.test/responses", headerFingerprint); got != nil {
 		t.Fatal("websocket session matched a different URL")
 	}
-	for _, name := range []string{"X-Client-Request-Id", "X-Codex-Turn-State", "X-Codex-Turn-Metadata"} {
-		if got, _ := existingWebsocketSessionConn(sess, "auth-a", "ws://example.test/responses", headerFingerprint); got != conn {
+	for _, name := range []string{"X-Client-Request-Id", "X-Codex-Turn-State", "X-Codex-Turn-Metadata", "X-Request-Id"} {
+		requestHeaders := headers.Clone()
+		requestHeaders.Set(name, "request-scoped-change")
+		requestFingerprint := websocketHeaderFingerprint(requestHeaders)
+		if got, _ := existingWebsocketSessionConn(sess, "auth-a", "ws://example.test/responses", requestFingerprint); got != conn {
 			t.Fatalf("websocket session did not ignore request-scoped %s", name)
 		}
 	}
-	if got, _ := existingWebsocketSessionConn(sess, "auth-a", "ws://example.test/responses", websocketHeaderFingerprint(headers, http.Header{"Sleev-Token": {"token-b"}})); got != nil {
+	differentHeaders := headers.Clone()
+	differentHeaders.Set("Sleev-Token", "token-b")
+	if got, _ := existingWebsocketSessionConn(sess, "auth-a", "ws://example.test/responses", websocketHeaderFingerprint(differentHeaders)); got != nil {
 		t.Fatal("websocket session reused a different header set")
 	}
 	sess.setUpstreamDisconnectError(conn, errors.New("upstream disconnected"))

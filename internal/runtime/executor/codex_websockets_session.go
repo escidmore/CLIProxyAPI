@@ -92,6 +92,7 @@ var websocketRequestScopedHeaders = map[string]struct{}{
 	"X-Codex-Turn-Metadata":                 {},
 	"X-Codex-Turn-State":                    {},
 	"X-Codex-Window-Id":                     {},
+	"X-Request-Id":                          {},
 	"X-Responsesapi-Include-Timing-Metrics": {},
 }
 
@@ -339,7 +340,7 @@ func closeWebsocketAfterBindFailure(sess *codexWebsocketSession, conn *websocket
 	}
 }
 
-func websocketHeaderFingerprint(headers http.Header, oauthHeaders ...http.Header) websocketHeaderDigest {
+func websocketHeaderFingerprint(headers http.Header) websocketHeaderDigest {
 	normalized := make(map[string][]string, len(headers))
 	for key, values := range headers {
 		canonicalKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
@@ -347,15 +348,6 @@ func websocketHeaderFingerprint(headers http.Header, oauthHeaders ...http.Header
 			continue
 		}
 		normalized[canonicalKey] = append(normalized[canonicalKey], values...)
-	}
-	for _, headers := range oauthHeaders {
-		for key, values := range headers {
-			canonicalKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
-			if canonicalKey == "" {
-				continue
-			}
-			normalized[canonicalKey] = append([]string(nil), values...)
-		}
 	}
 	payload, _ := json.Marshal(normalized)
 	return sha256.Sum256(payload)

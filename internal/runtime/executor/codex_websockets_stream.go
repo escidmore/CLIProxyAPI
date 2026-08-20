@@ -86,9 +86,8 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	wsHeaders = applyCodexWebsocketHeaders(ctx, wsHeaders, auth, apiKey, e.cfg)
 	applyModelHeaderOverrides(wsHeaders, baseModel)
 	applyCodexIdentityConfuseHeaders(wsHeaders, &identityState)
-	connectionHeaders := wsHeaders.Clone()
-	oauthHeaders := helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
-	headerFingerprint := websocketHeaderFingerprint(connectionHeaders, oauthHeaders)
+	helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
+	headerFingerprint := websocketHeaderFingerprint(wsHeaders)
 
 	var authID, authLabel, authType, authValue string
 	authID = auth.ID
