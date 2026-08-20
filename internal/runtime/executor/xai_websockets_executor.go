@@ -499,7 +499,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 			sess.reqMu.Lock()
 		}
 	}
-	wsHeaders := applyXAIWebsocketHeaders(http.Header{}, auth, token, prepared.sessionID)
+	wsHeaders := applyXAIWebsocketHeaders(http.Header{}, auth, token, prepared.sessionID, opts.Headers)
 	helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
 	headerFingerprint := websocketHeaderFingerprint(wsHeaders)
 	idMapper := newXAIWebsocketRequestIDMapper(e.idStore, stateSessionID, req.Payload)
@@ -1450,7 +1450,7 @@ func buildXAIResponsesWebsocketURL(httpURL string) (string, error) {
 	return parsed.String(), nil
 }
 
-func applyXAIWebsocketHeaders(headers http.Header, auth *cliproxyauth.Auth, token string, sessionID string) http.Header {
+func applyXAIWebsocketHeaders(headers http.Header, auth *cliproxyauth.Auth, token string, sessionID string, clientHeaders ...http.Header) http.Header {
 	if headers == nil {
 		headers = http.Header{}
 	}
@@ -1465,7 +1465,7 @@ func applyXAIWebsocketHeaders(headers http.Header, auth *cliproxyauth.Auth, toke
 	if auth != nil {
 		attrs = auth.Attributes
 	}
-	util.ApplyCustomHeadersFromAttrs(&http.Request{Header: headers}, attrs)
+	util.ApplyCustomHeadersFromAttrs(&http.Request{Header: headers}, attrs, clientHeaders...)
 	return headers
 }
 

@@ -40,7 +40,7 @@ func (e *XAIExecutor) executeImages(ctx context.Context, auth *cliproxyauth.Auth
 	if err != nil {
 		return resp, err
 	}
-	applyXAIHeaders(httpReq, auth, token, false, "")
+	applyXAIHeaders(httpReq, auth, token, false, "", opts.Headers)
 	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	e.recordXAIRequest(ctx, auth, url, httpReq.Header.Clone(), payload)
 
@@ -110,7 +110,7 @@ func (e *XAIExecutor) executeVideos(ctx context.Context, auth *cliproxyauth.Auth
 	if err != nil {
 		return resp, err
 	}
-	applyXAIHeaders(httpReq, auth, token, false, "")
+	applyXAIHeaders(httpReq, auth, token, false, "", opts.Headers)
 	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	if method == http.MethodPost {
 		key := xaiMetadataString(opts.Metadata, xaiIdempotencyKeyMetaKey)
