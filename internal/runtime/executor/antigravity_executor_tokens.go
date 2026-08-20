@@ -68,6 +68,9 @@ func (e *AntigravityExecutor) CountTokens(ctx context.Context, auth *cliproxyaut
 	payload = helps.DeleteJSONField(payload, "request.safetySettings")
 
 	baseURLs := antigravityBaseURLFallbackOrder(auth)
+	if override := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, ""); override != "" {
+		baseURLs = []string{override}
+	}
 	httpClient := newAntigravityHTTPClient(ctx, e.cfg, auth, 0)
 
 	var authID, authLabel, authType, authValue string
@@ -111,6 +114,7 @@ func (e *AntigravityExecutor) CountTokens(ctx context.Context, auth *cliproxyaut
 			attrs = auth.Attributes
 		}
 		util.ApplyCustomHeadersFromAttrs(httpReq, attrs)
+		helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 
 		helps.RecordAPIRequest(ctx, e.cfg, helps.UpstreamRequestLog{
 			URL:       requestURL.String(),

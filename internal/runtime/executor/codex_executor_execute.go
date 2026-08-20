@@ -31,6 +31,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 	if baseURL == "" {
 		baseURL = "https://chatgpt.com/backend-api/codex"
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 
 	reporter := helps.NewExecutorUsageReporter(ctx, e, baseModel, auth)
 	defer reporter.TrackFailure(ctx, &err)
@@ -82,6 +83,7 @@ func (e *CodexExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, re
 	applyCodexHeaders(httpReq, auth, apiKey, true, e.cfg)
 	applyModelHeaderOverrides(httpReq.Header, baseModel)
 	applyCodexIdentityConfuseHeaders(httpReq.Header, &identityState)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
 		authID = auth.ID
@@ -203,6 +205,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
 	if baseURL == "" {
 		baseURL = "https://chatgpt.com/backend-api/codex"
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 
 	reporter := helps.NewExecutorUsageReporter(ctx, e, baseModel, auth)
 	defer reporter.TrackFailure(ctx, &err)
@@ -242,6 +245,7 @@ func (e *CodexExecutor) executeCompact(ctx context.Context, auth *cliproxyauth.A
 	applyCodexHeaders(httpReq, auth, apiKey, false, e.cfg)
 	applyModelHeaderOverrides(httpReq.Header, baseModel)
 	applyCodexIdentityConfuseHeaders(httpReq.Header, &identityState)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
 		authID = auth.ID

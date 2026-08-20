@@ -24,7 +24,7 @@ func (e *XAIExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth
 	}
 
 	token, _ := xaiCreds(auth)
-	baseURL := xaiChatBaseURL(auth)
+	baseURL := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, xaiChatBaseURL(auth))
 	logXAIResolvedBaseURL(ctx, baseURL)
 
 	prepared, err := e.prepareResponsesRequest(ctx, req, opts, true)
@@ -42,6 +42,7 @@ func (e *XAIExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth
 		return nil, err
 	}
 	applyXAIChatHeaders(httpReq, auth, token, true, prepared.sessionID)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	e.recordXAIRequest(ctx, auth, url, httpReq.Header.Clone(), prepared.body)
 
 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)

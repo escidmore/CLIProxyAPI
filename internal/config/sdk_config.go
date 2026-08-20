@@ -9,6 +9,11 @@ type SDKConfig struct {
 	// ProxyURL is the URL of an optional proxy server to use for outbound requests.
 	ProxyURL string `yaml:"proxy-url" json:"proxy-url"`
 
+	// OAuth configures endpoint and header overrides for incoming completion
+	// requests that use OAuth credentials. It does not affect OAuth management
+	// calls or other internal provider requests.
+	OAuth map[string]OAuthProviderConfig `yaml:"oauth,omitempty" json:"oauth,omitempty"`
+
 	// DisableImageGeneration controls whether the built-in image_generation tool is injected/allowed.
 	//
 	// Supported values:

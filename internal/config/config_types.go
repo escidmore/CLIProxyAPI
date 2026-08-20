@@ -131,6 +131,13 @@ type CodexHeaderDefaults struct {
 	BetaFeatures string `yaml:"beta-features" json:"beta-features"`
 }
 
+// OAuthProviderConfig overrides the completion endpoint and headers for OAuth
+// requests made through the proxy. It does not change OAuth management calls.
+type OAuthProviderConfig struct {
+	BaseURL string            `yaml:"base-url,omitempty" json:"base-url,omitempty"`
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+}
+
 // XAIConfig configures provider-wide xAI request behavior.
 type XAIConfig struct {
 	// InjectXSearch injects xAI's native x_search tool when the request does not declare it.

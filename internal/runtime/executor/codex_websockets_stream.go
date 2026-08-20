@@ -32,6 +32,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	if baseURL == "" {
 		baseURL = "https://chatgpt.com/backend-api/codex"
 	}
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 
 	reporter := helps.NewExecutorUsageReporter(ctx, e, baseModel, auth)
 	defer reporter.TrackFailure(ctx, &err)
@@ -85,6 +86,8 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	wsHeaders = applyCodexWebsocketHeaders(ctx, wsHeaders, auth, apiKey, e.cfg)
 	applyModelHeaderOverrides(wsHeaders, baseModel)
 	applyCodexIdentityConfuseHeaders(wsHeaders, &identityState)
+	helps.ApplyOAuthCompletionWebsocketHeaders(wsHeaders, e.cfg, auth, opts)
+	headerFingerprint := websocketHeaderFingerprint(wsHeaders)
 
 	var authID, authLabel, authType, authValue string
 	authID = auth.ID
@@ -126,7 +129,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 	var respHS *http.Response
 	var errDial error
 	if cliproxyexecutor.RequiredUpstreamWebsocket(ctx) {
-		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL)
+		conn, closer = existingWebsocketSessionConn(sess, authID, wsURL, headerFingerprint)
 		if conn == nil {
 			if sess != nil {
 				sess.reqMu.Unlock()
@@ -134,7 +137,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			return nil, cliproxyexecutor.NewUpstreamWebsocketReplayRequiredError()
 		}
 	} else {
-		conn, closer, respHS, errDial = e.ensureUpstreamConn(ctx, auth, sess, authID, wsURL, wsHeaders)
+		conn, closer, respHS, errDial = e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, wsHeaders, headerFingerprint)
 	}
 	var upstreamHeaders http.Header
 	if respHS != nil {
@@ -207,7 +210,7 @@ func (e *CodexWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *clipr
 			}
 
 			// Retry once with a new websocket connection for the same execution session.
-			connRetry, closerRetry, respHSRetry, errDialRetry := e.ensureUpstreamConn(ctx, auth, sess, authID, wsURL, wsHeaders)
+			connRetry, closerRetry, respHSRetry, errDialRetry := e.ensureUpstreamConnWithFingerprint(ctx, auth, sess, authID, wsURL, wsHeaders, headerFingerprint)
 			if errDialRetry != nil || connRetry == nil {
 				closeHTTPResponseBody(respHSRetry, "codex websockets executor: close handshake response body error")
 				helps.RecordAPIWebsocketError(ctx, e.cfg, "dial_retry", errDialRetry)

@@ -29,6 +29,8 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"
 	}
+	anthropicBaseURL := baseURL
+	baseURL = helps.OAuthCompletionBaseURL(e.cfg, auth, opts, baseURL)
 	url := fmt.Sprintf("%s/v1/messages?beta=true", baseURL)
 	oauthToken := isClaudeOAuthToken(apiKey)
 	defer func() {
@@ -96,7 +98,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// keeps its own shape and other gateways never see this field.
 	diagnosticsState := claudeDiagnosticsRequestState{}
 	contextManagementState := claudeCodeContextManagementState{
-		eligible:    cloaked && isAnthropicUpstreamBase(baseURL),
+		eligible:    cloaked && isAnthropicUpstreamBase(anthropicBaseURL),
 		callerOwned: gjson.GetBytes(body, "context_management").Exists(),
 	}
 	if contextManagementState.eligible {
@@ -178,7 +180,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// Runs on the finished body: payload rules can rewrite model and messages
 	// long after translation, so an earlier check would not describe the request
 	// that is about to be sent.
-	if errMidSystem := validateClaudeMidSystemMessageModel(bodyForUpstream, confirmedClaudeCode, isAnthropicUpstreamBase(baseURL)); errMidSystem != nil {
+	if errMidSystem := validateClaudeMidSystemMessageModel(bodyForUpstream, confirmedClaudeCode, isAnthropicUpstreamBase(anthropicBaseURL)); errMidSystem != nil {
 		return nil, errMidSystem
 	}
 	reporter.SetTranslatedReasoningEffort(bodyForUpstream, to.String())
@@ -201,7 +203,8 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	); errHeaders != nil {
 		return nil, errHeaders
 	}
-	fastRequest := isAnthropicUpstreamBase(baseURL) && claudeRequestIsFast(httpReq, bodyForUpstream)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
+	fastRequest := isAnthropicUpstreamBase(anthropicBaseURL) && claudeRequestIsFast(httpReq, bodyForUpstream)
 	authID, authLabel, authType, authValue := claudeAuthLogIdentity(auth)
 	helps.RecordAPIRequest(ctx, e.cfg, helps.UpstreamRequestLog{
 		URL:       url,

@@ -23,14 +23,14 @@ func (e *XAIExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req 
 		return e.executeCompact(ctx, auth, req, opts)
 	}
 	if endpointPath := xaiImageEndpointPath(opts); endpointPath != "" {
-		return e.executeImages(ctx, auth, req, endpointPath)
+		return e.executeImages(ctx, auth, req, opts, endpointPath)
 	}
 	if xaiIsVideoRequest(opts) {
 		return e.executeVideos(ctx, auth, req, opts)
 	}
 
 	token, _ := xaiCreds(auth)
-	baseURL := xaiChatBaseURL(auth)
+	baseURL := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, xaiChatBaseURL(auth))
 	logXAIResolvedBaseURL(ctx, baseURL)
 
 	prepared, err := e.prepareResponsesRequest(ctx, req, opts, true)
@@ -48,6 +48,7 @@ func (e *XAIExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req 
 		return resp, err
 	}
 	applyXAIChatHeaders(httpReq, auth, token, true, prepared.sessionID)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	e.recordXAIRequest(ctx, auth, url, httpReq.Header.Clone(), prepared.body)
 
 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)
@@ -134,7 +135,7 @@ func (e *XAIExecutor) executeCompactRequest(ctx context.Context, auth *cliproxya
 	token, _ := xaiCreds(auth)
 	// Compact must not use xaiChatBaseURL: CLI chat-proxy returns 404 for
 	// /responses/compact and a 404 cools down the whole xAI auth pool.
-	baseURL := xaiCompactBaseURL(auth)
+	baseURL := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, xaiCompactBaseURL(auth))
 	logXAIResolvedBaseURL(ctx, baseURL)
 
 	prepared, err := e.prepareResponsesRequestTo(ctx, req, opts, false, sdktranslator.FormatOpenAIResponse)
@@ -160,6 +161,7 @@ func (e *XAIExecutor) executeCompactRequest(ctx context.Context, auth *cliproxya
 	// Official API / custom compact endpoints use standard API headers, not CLI
 	// chat-proxy identity headers (which applyXAIChatHeaders may still attach for OAuth chat).
 	applyXAIHeaders(httpReq, auth, token, false, prepared.sessionID)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	e.recordXAIRequest(ctx, auth, requestURL, httpReq.Header.Clone(), prepared.body)
 
 	httpClient := helps.NewProxyAwareHTTPClient(ctx, e.cfg, auth, 0)

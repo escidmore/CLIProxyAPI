@@ -95,9 +95,8 @@ func (e *KimiExecutor) HttpRequest(ctx context.Context, auth *cliproxyauth.Auth,
 func (e *KimiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (resp cliproxyexecutor.Response, err error) {
 	from := opts.SourceFormat
 	if from.String() == "claude" {
-		auth.Attributes["base_url"] = kimiauth.KimiAPIBaseURL
 		preparedReq, replayScope := prepareKimiThinkingReplayRequest(ctx, req, opts)
-		claudeResp, errExecute := e.ClaudeExecutor.Execute(ctx, auth, preparedReq, opts)
+		claudeResp, errExecute := e.ClaudeExecutor.Execute(ctx, kimiClaudeAuth(auth), preparedReq, opts)
 		if errExecute != nil {
 			if replayScope.replayApplied && shouldClearKimiThinkingReplayAfterError(errExecute) {
 				clearKimiThinkingReplayContent(ctx, replayScope)
@@ -146,7 +145,8 @@ func (e *KimiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 	}
 	reporter.SetTranslatedReasoningEffort(body, e.Identifier())
 
-	url := kimiauth.KimiAPIBaseURL + "/v1/chat/completions"
+	baseURL := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, kimiauth.KimiAPIBaseURL)
+	url := strings.TrimRight(baseURL, "/") + "/v1/chat/completions"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return resp, err
@@ -157,6 +157,7 @@ func (e *KimiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 		attrs = auth.Attributes
 	}
 	util.ApplyCustomHeadersFromAttrs(httpReq, attrs)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
 		authID = auth.ID
@@ -217,9 +218,8 @@ func (e *KimiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, req
 func (e *KimiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (_ *cliproxyexecutor.StreamResult, err error) {
 	from := opts.SourceFormat
 	if from.String() == "claude" {
-		auth.Attributes["base_url"] = kimiauth.KimiAPIBaseURL
 		preparedReq, replayScope := prepareKimiThinkingReplayRequest(ctx, req, opts)
-		claudeResult, errExecute := e.ClaudeExecutor.ExecuteStream(ctx, auth, preparedReq, opts)
+		claudeResult, errExecute := e.ClaudeExecutor.ExecuteStream(ctx, kimiClaudeAuth(auth), preparedReq, opts)
 		if errExecute != nil {
 			if replayScope.replayApplied && shouldClearKimiThinkingReplayAfterError(errExecute) {
 				clearKimiThinkingReplayContent(ctx, replayScope)
@@ -270,7 +270,8 @@ func (e *KimiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 	}
 	reporter.SetTranslatedReasoningEffort(body, e.Identifier())
 
-	url := kimiauth.KimiAPIBaseURL + "/v1/chat/completions"
+	baseURL := helps.OAuthCompletionBaseURL(e.cfg, auth, opts, kimiauth.KimiAPIBaseURL)
+	url := strings.TrimRight(baseURL, "/") + "/v1/chat/completions"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -281,6 +282,7 @@ func (e *KimiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 		attrs = auth.Attributes
 	}
 	util.ApplyCustomHeadersFromAttrs(httpReq, attrs)
+	helps.ApplyOAuthCompletionHeaders(httpReq.Header, e.cfg, auth, opts)
 	var authID, authLabel, authType, authValue string
 	if auth != nil {
 		authID = auth.ID
@@ -366,8 +368,20 @@ func (e *KimiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Aut
 
 // CountTokens estimates token count for Kimi requests.
 func (e *KimiExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
-	auth.Attributes["base_url"] = kimiauth.KimiAPIBaseURL
-	return e.ClaudeExecutor.countTokensUpstream(ctx, auth, req, opts)
+	return e.ClaudeExecutor.countTokensUpstream(ctx, kimiClaudeAuth(auth), req, opts)
+}
+
+func kimiClaudeAuth(auth *cliproxyauth.Auth) *cliproxyauth.Auth {
+	if auth == nil {
+		return nil
+	}
+	clone := *auth
+	clone.Attributes = make(map[string]string, len(auth.Attributes)+1)
+	for key, value := range auth.Attributes {
+		clone.Attributes[key] = value
+	}
+	clone.Attributes["base_url"] = kimiauth.KimiAPIBaseURL
+	return &clone
 }
 
 func normalizeKimiToolMessageLinks(body []byte) ([]byte, error) {

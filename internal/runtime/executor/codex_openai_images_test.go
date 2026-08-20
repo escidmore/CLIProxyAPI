@@ -125,6 +125,105 @@ func TestCodexExecutorDirectOpenAIImageGenerationUsesImagesEndpoint(t *testing.T
 	}
 }
 
+func TestCodexExecutorDirectOpenAIImageUsesOAuthCompletionBaseURL(t *testing.T) {
+	var overrideRequests, fallbackRequests int
+	overrideServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		overrideRequests++
+		if r.URL.Path != "/images/generations" {
+			t.Fatalf("path = %q, want /images/generations", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"created":1713833628,"data":[{"b64_json":"AA=="}]}`))
+	}))
+	defer overrideServer.Close()
+	fallbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fallbackRequests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"created":1713833628,"data":[{"b64_json":"AQ=="}]}`))
+	}))
+	defer fallbackServer.Close()
+
+	executor := NewCodexExecutor(&config.Config{SDKConfig: config.SDKConfig{OAuth: map[string]config.OAuthProviderConfig{
+		"codex": {BaseURL: overrideServer.URL},
+	}}})
+	_, errExecute := executor.Execute(context.Background(), &cliproxyauth.Auth{
+		Provider: "codex",
+		Attributes: map[string]string{
+			cliproxyauth.AttributeAuthKind: cliproxyauth.AuthKindOAuth,
+			"base_url":                     fallbackServer.URL,
+		},
+		Metadata: map[string]any{"access_token": "provider-token"},
+	}, cliproxyexecutor.Request{
+		Model:   "gpt-image-2",
+		Payload: []byte(`{"model":"gpt-image-2","prompt":"A cute baby sea otter"}`),
+	}, codexOpenAIImageTestOptions(codexImagesGenerationsPath, false))
+	if errExecute != nil {
+		t.Fatalf("Execute() error = %v", errExecute)
+	}
+	if overrideRequests != 1 {
+		t.Fatalf("OAuth override requests = %d, want 1", overrideRequests)
+	}
+	if fallbackRequests != 0 {
+		t.Fatalf("fallback requests = %d, want 0", fallbackRequests)
+	}
+}
+
+func TestCodexExecutorOpenAIImageStreamUsesOAuthCompletionHeaders(t *testing.T) {
+	var overrideRequests, fallbackRequests int
+	var gotPath, gotToken string
+	overrideServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		overrideRequests++
+		gotPath = r.URL.Path
+		gotToken = r.Header.Get("sleev-token")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"image_generation_call\",\"result\":\"AA==\",\"output_format\":\"png\"}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\n"))
+	}))
+	defer overrideServer.Close()
+	fallbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fallbackRequests++
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"output\":[]}}\n\n"))
+	}))
+	defer fallbackServer.Close()
+
+	executor := NewCodexExecutor(&config.Config{SDKConfig: config.SDKConfig{OAuth: map[string]config.OAuthProviderConfig{
+		"codex": {BaseURL: overrideServer.URL, Headers: map[string]string{"sleev-token": "default-token"}},
+	}}})
+	opts := codexOpenAIImageTestOptions(codexImagesGenerationsPath, true)
+	opts.Headers = http.Header{"Sleev-Token": {"harness-token"}}
+	stream, errStream := executor.ExecuteStream(context.Background(), &cliproxyauth.Auth{
+		Provider: "codex",
+		Attributes: map[string]string{
+			cliproxyauth.AttributeAuthKind: cliproxyauth.AuthKindOAuth,
+			"base_url":                     fallbackServer.URL,
+		},
+		Metadata: map[string]any{"access_token": "provider-token"},
+	}, cliproxyexecutor.Request{
+		Model:   "gpt-5.4",
+		Payload: []byte(`{"model":"gpt-5.4","prompt":"A cute baby sea otter"}`),
+	}, opts)
+	if errStream != nil {
+		t.Fatalf("ExecuteStream() error = %v", errStream)
+	}
+	for chunk := range stream.Chunks {
+		if chunk.Err != nil {
+			t.Fatalf("stream chunk error = %v", chunk.Err)
+		}
+	}
+	if overrideRequests != 1 {
+		t.Fatalf("OAuth override requests = %d, want 1", overrideRequests)
+	}
+	if fallbackRequests != 0 {
+		t.Fatalf("fallback requests = %d, want 0", fallbackRequests)
+	}
+	if gotPath != "/responses" {
+		t.Fatalf("path = %q, want /responses", gotPath)
+	}
+	if gotToken != "harness-token" {
+		t.Fatalf("sleev-token = %q, want harness-token", gotToken)
+	}
+}
+
 func TestCodexExecutorDirectOpenAIImageGenerationStreamsImagesEndpoint(t *testing.T) {
 	var gotPath string
 	var gotAccept string
