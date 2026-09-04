@@ -586,6 +586,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 		readCh = sess.activate(conn)
 	}
 
+	cliproxyexecutor.MarkUpstreamAttempt(ctx)
 	if errSend := writeCodexWebsocketMessage(sess, conn, wsReqBody); errSend != nil {
 		errSend = mapXAIWebsocketWriteError(sess, conn, errSend)
 		helps.RecordAPIWebsocketError(ctx, e.cfg, "send", errSend)
@@ -642,6 +643,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 			logXAIWebsocketRequest(executionSessionID, authID, wsURL, wsReqBodyRetry)
 			recordAPIWebsocketHandshake(ctx, e.cfg, respHSRetry)
 			reporter.StartResponseTTFT()
+			cliproxyexecutor.MarkUpstreamAttempt(ctx)
 			if errSendRetry := writeCodexWebsocketMessage(sess, conn, wsReqBodyRetry); errSendRetry != nil {
 				errSendRetry = mapXAIWebsocketWriteError(sess, connRetry, errSendRetry)
 				helps.RecordAPIWebsocketError(ctx, e.cfg, "send_retry", errSendRetry)
@@ -702,6 +704,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 		outputItemsByIndex := make(map[int64][]byte)
 		var outputItemsFallback [][]byte
 		responseFilter := newXAIInternalXSearchResponseFilter(prepared.filterInternalXSearch, prepared.clientDeclaredTools)
+		namespaceRestorer := newXAINamespaceRestorer(prepared.namespaceTools)
 		recordedTranscript := false
 		for {
 			if ctx != nil && ctx.Err() != nil {
@@ -748,6 +751,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 			}
 			reporter.MarkFirstResponseByte()
 			helps.AppendAPIWebsocketResponse(ctx, e.cfg, payload)
+			helps.EmitWebSocketResponseEvent(ctx, opts, auth, e.Identifier(), req.Model, payload)
 
 			if wsErr, ok := parseXAIWebsocketError(payload); ok {
 				terminateReason = "upstream_error"
@@ -762,7 +766,7 @@ func (e *XAIWebsocketsExecutor) ExecuteStream(ctx context.Context, auth *cliprox
 			}
 
 			for _, payload := range xaiNormalizeReasoningSummaryDataEvents(payload) {
-				payload = restoreXAINamespaceToolCalls(payload, prepared.namespaceTools)
+				payload = namespaceRestorer.restore(payload)
 				payload = responseFilter.apply(payload)
 				if len(payload) == 0 {
 					continue
@@ -1051,6 +1055,9 @@ func (e *XAIWebsocketsExecutor) dialXAIWebsocket(ctx context.Context, auth *clip
 		ctx = context.Background()
 	}
 	conn, resp, err := dialer.DialContext(ctx, wsURL, headers)
+	if err != nil {
+		cliproxyexecutor.MarkUpstreamAttempt(ctx)
+	}
 	closer := newWebsocketConnectionCloser(conn)
 	if conn != nil {
 		// Avoid gorilla/websocket flate tail validation issues on some upstreams/Go versions.
@@ -1457,6 +1464,8 @@ func applyXAIWebsocketHeaders(headers http.Header, auth *cliproxyauth.Auth, toke
 	headers.Set("Content-Type", "application/json")
 	if strings.TrimSpace(token) != "" {
 		headers.Set("Authorization", "Bearer "+token)
+	} else {
+		headers.Del("Authorization")
 	}
 	if sessionID != "" {
 		headers.Set("x-grok-conv-id", sessionID)
