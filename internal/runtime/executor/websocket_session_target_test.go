@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	internalhome "github.com/router-for-me/CLIProxyAPI/v7/internal/home"
-	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executionregistry"
-	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
-	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	internalhome "github.com/router-for-me/CLIProxyAPI/v8/internal/home"
+	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executionregistry"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executor"
+	sdktranslator "github.com/router-for-me/CLIProxyAPI/v8/sdk/translator"
 )
 
 type rejectSecondBindLifecycle struct {
@@ -145,7 +145,7 @@ func TestWebsocketRetryBindFailureClearsActiveSessionState(t *testing.T) {
 				return func(runOpts cliproxyexecutor.Options) error {
 					if !primed {
 						wsURL := "ws" + strings.TrimPrefix(baseURL, "http") + "/responses"
-						wsHeaders := applyCodexWebsocketHeaders(context.Background(), http.Header{}, auth, "test-key", executor.cfg, runOpts.Headers)
+						wsHeaders := applyCodexWebsocketHeaders(context.Background(), http.Header{}, auth, "test-key", executor.cfg, false, runOpts.Headers)
 						applyModelHeaderOverrides(wsHeaders, req.Model)
 						conn, _, _, errEnsure := executor.ensureUpstreamConn(context.Background(), auth, executor.getOrCreateSession("retry-bind"), auth.ID, wsURL, wsHeaders)
 						if errEnsure != nil {
@@ -172,7 +172,7 @@ func TestWebsocketRetryBindFailureClearsActiveSessionState(t *testing.T) {
 				return func(runOpts cliproxyexecutor.Options) error {
 					if !primed {
 						wsURL := "ws" + strings.TrimPrefix(baseURL, "http") + "/responses"
-						wsHeaders := applyCodexWebsocketHeaders(context.Background(), http.Header{}, auth, "test-key", executor.cfg, runOpts.Headers)
+						wsHeaders := applyCodexWebsocketHeaders(context.Background(), http.Header{}, auth, "test-key", executor.cfg, false, runOpts.Headers)
 						applyModelHeaderOverrides(wsHeaders, req.Model)
 						conn, _, _, errEnsure := executor.ensureUpstreamConn(context.Background(), auth, executor.getOrCreateSession("retry-bind"), auth.ID, wsURL, wsHeaders)
 						if errEnsure != nil {
@@ -207,7 +207,7 @@ func TestWebsocketRetryBindFailureClearsActiveSessionState(t *testing.T) {
 				return func(runOpts cliproxyexecutor.Options) error {
 					if !primed {
 						wsURL := "ws" + strings.TrimPrefix(baseURL, "http") + "/responses"
-						wsHeaders := applyXAIWebsocketHeaders(http.Header{}, auth, "test-token", xaiExecutionSessionID(req, runOpts), runOpts.Headers)
+						wsHeaders := applyXAIWebsocketHeaders(context.Background(), http.Header{}, auth, "test-token", xaiExecutionSessionID(req, runOpts), runOpts.Headers)
 						conn, _, _, errEnsure := executor.ensureUpstreamConn(context.Background(), auth, executor.getOrCreateSession("retry-bind"), auth.ID, wsURL, wsHeaders)
 						if errEnsure != nil {
 							return errEnsure

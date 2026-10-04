@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
-	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executor"
 )
 
 // OAuthCompletionBaseURL returns the configured completion endpoint for an
@@ -93,7 +93,7 @@ func oauthCompletionConfig(cfg *config.Config, auth *cliproxyauth.Auth, opts cli
 		return config.OAuthProviderConfig{}, false
 	}
 	provider := strings.ToLower(strings.TrimSpace(auth.Provider))
-	for name, override := range cfg.OAuth {
+	for name, override := range cfg.OAuthCompletion {
 		if strings.EqualFold(strings.TrimSpace(name), provider) {
 			return override, true
 		}

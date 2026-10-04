@@ -4,14 +4,14 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
-	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executor"
 )
 
 func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.OAuth = map[string]config.OAuthProviderConfig{
+	cfg.OAuthCompletion = map[string]config.OAuthProviderConfig{
 		"codex": {
 			BaseURL: "https://sleev.example/",
 			Headers: map[string]string{
@@ -129,7 +129,7 @@ func TestOAuthCompletionOverridesOnlyIncomingOAuthRequests(t *testing.T) {
 
 func TestOAuthCompletionWebsocketHeadersProtectHandshakeControls(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.OAuth = map[string]config.OAuthProviderConfig{
+	cfg.OAuthCompletion = map[string]config.OAuthProviderConfig{
 		"codex": {Headers: map[string]string{"sleev-token": "default-token", "OpenAI-Beta": "configured-beta", "Origin": "configured-origin", "Originator": "configured-originator"}},
 	}
 	auth := &cliproxyauth.Auth{

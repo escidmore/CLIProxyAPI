@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
-	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
-	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
-	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executor"
+	sdktranslator "github.com/router-for-me/CLIProxyAPI/v8/sdk/translator"
 )
 
 // TestCodexExecutorOAuthCompletionOverrideTransport exercises the OAuth
@@ -37,7 +37,7 @@ func TestCodexExecutorOAuthCompletionOverrideTransport(t *testing.T) {
 	defer server.Close()
 
 	cfg := &config.Config{SDKConfig: config.SDKConfig{DisableImageGeneration: config.DisableImageGenerationAll}}
-	cfg.OAuth = map[string]config.OAuthProviderConfig{
+	cfg.OAuthCompletion = map[string]config.OAuthProviderConfig{
 		"codex": {
 			BaseURL: server.URL,
 			Headers: map[string]string{
